@@ -1,0 +1,28 @@
+{
+  "name": "site-bot-cloudflare",
+  "version": "1.0.0",
+  "description": "Site monitoring bot for Telegram and Discord - Cloudflare Workers version",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "telegram",
+    "discord",
+    "bot",
+    "sitemap"
+  ],
+  "author": "Site Bot Team",
+  "license": "MIT"
+}

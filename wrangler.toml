@@ -1,0 +1,25 @@
+name = "site-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# 定时任务配置 - 每小时执行一次
+[triggers]
+crons = ["0 * * * *"]
+
+# KV 存储配置
+[[kv_namespaces]]
+binding = "SITEMAP_STORAGE"
+id = "b2137387b6694751a90fe06710f64b73"
+preview_id = "67f4101142c74a458cbfdf1405f7a06a"
+
+# 环境变量
+[vars]
+NODE_ENV = "production"
+
+# 生产环境配置
+[env.production]
+name = "site-bot-prod"
+
+# 开发环境配置
+[env.staging]
+name = "site-bot-staging" 
