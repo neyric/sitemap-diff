@@ -156,7 +156,7 @@ async function handleDiscordRSSCommand(options, rssManager) {
       }
 
       const feedList = feeds.map(feed => `- ${feed}`).join('\n');
-      return `当前RSS订阅列表：\n${feedList}`;
+      return `当前RSS订阅总数${feeds.length}个,列表：\n${feedList}`;
 
     case 'add':
       const url = options[0].options?.[0]?.value;

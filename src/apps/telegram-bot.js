@@ -294,7 +294,7 @@ async function handleRSSCommand(chatId, args, rssManager) {
       }
 
       const feedList = feeds.map(feed => `- ${feed}`).join('\n');
-      await sendMessage(chatId, `当前RSS订阅列表：\n${feedList}`);
+      await sendMessage(chatId, `当前RSS订阅总数${feeds.length}个,列表：\n${feedList}`);
       break;
 
     case 'add':
