@@ -1,17 +1,8 @@
 /**
  * XML 解析器
  * 用于解析 sitemap XML 文件
+ * 适配 Cloudflare Workers 环境（不支持 DOMParser）
  */
-
-/**
- * 解析 XML 字符串
- * @param {string} xmlString - XML 字符串
- * @returns {Document} DOM 文档对象
- */
-export function parseXML(xmlString) {
-  const parser = new DOMParser();
-  return parser.parseFromString(xmlString, 'text/xml');
-}
 
 /**
  * 从 sitemap XML 中提取所有 URL
@@ -20,15 +11,15 @@ export function parseXML(xmlString) {
  */
 export function extractURLs(xmlContent) {
   try {
-    const doc = parseXML(xmlContent);
     const urls = [];
 
-    // 查找所有 <loc> 标签
-    const locElements = doc.querySelectorAll('loc');
+    // 使用正则表达式匹配 <loc> 标签中的 URL
+    const locRegex = /<loc[^>]*>(.*?)<\/loc>/gi;
+    let match;
 
-    for (const element of locElements) {
-      const url = element.textContent.trim();
-      if (url) {
+    while ((match = locRegex.exec(xmlContent)) !== null) {
+      const url = match[1].trim();
+      if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
         urls.push(url);
       }
     }
@@ -47,21 +38,24 @@ export function extractURLs(xmlContent) {
  */
 export function extractURLsWithLastMod(xmlContent) {
   try {
-    const doc = parseXML(xmlContent);
     const results = [];
 
-    // 查找所有 <url> 标签
-    const urlElements = doc.querySelectorAll('url');
+    // 使用正则表达式匹配 <url> 块
+    const urlBlockRegex = /<url[^>]*>(.*?)<\/url>/gis;
+    let urlMatch;
 
-    for (const urlElement of urlElements) {
-      const locElement = urlElement.querySelector('loc');
-      const lastmodElement = urlElement.querySelector('lastmod');
+    while ((urlMatch = urlBlockRegex.exec(xmlContent)) !== null) {
+      const urlBlock = urlMatch[1];
 
-      if (locElement) {
-        const url = locElement.textContent.trim();
-        const lastmod = lastmodElement ? lastmodElement.textContent.trim() : undefined;
+      // 在每个 url 块中提取 loc 和 lastmod
+      const locMatch = /<loc[^>]*>(.*?)<\/loc>/i.exec(urlBlock);
+      const lastmodMatch = /<lastmod[^>]*>(.*?)<\/lastmod>/i.exec(urlBlock);
 
-        if (url) {
+      if (locMatch) {
+        const url = locMatch[1].trim();
+        const lastmod = lastmodMatch ? lastmodMatch[1].trim() : undefined;
+
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
           results.push({ url, lastmod });
         }
       }
@@ -81,26 +75,28 @@ export function extractURLsWithLastMod(xmlContent) {
  */
 export function isValidSitemap(xmlContent) {
   try {
-    const doc = parseXML(xmlContent);
+    // 检查是否包含 sitemap 相关的标签
+    const hasUrlset = /<urlset[^>]*>/i.test(xmlContent);
+    const hasSitemapindex = /<sitemapindex[^>]*>/i.test(xmlContent);
+    const hasLocTags = /<loc[^>]*>.*?<\/loc>/i.test(xmlContent);
 
-    // 检查根元素是否为 urlset
-    const rootElement = doc.documentElement;
-    if (!rootElement || rootElement.tagName !== 'urlset') {
-      return false;
-    }
-
-    // 检查是否包含 sitemap 命名空间
-    const namespace = rootElement.getAttribute('xmlns');
-    if (!namespace || !namespace.includes('sitemaps.org')) {
-      return false;
-    }
-
-    // 检查是否至少有一个 url 元素
-    const urlElements = doc.querySelectorAll('url');
-    return urlElements.length > 0;
-
+    return (hasUrlset || hasSitemapindex) && hasLocTags;
   } catch (error) {
     console.error('验证 sitemap 失败:', error);
     return false;
   }
+}
+
+/**
+ * 解析 XML 字符串（兼容性方法）
+ * @param {string} xmlString - XML 字符串
+ * @returns {Object} 模拟的文档对象
+ * @deprecated 在 Workers 环境中使用正则表达式替代
+ */
+export function parseXML(xmlString) {
+  console.warn('parseXML 在 Workers 环境中已弃用，请使用 extractURLs 等专用方法');
+  return {
+    querySelectorAll: () => [],
+    documentElement: null
+  };
 } 

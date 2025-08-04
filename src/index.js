@@ -44,7 +44,7 @@ function initializeApp(env) {
 }
 
 /**
- * 执行定时监控任务
+ * 执行定时监控任务（分批处理版本）
  * @param {Object} env - 环境变量
  */
 async function performScheduledMonitoring(env) {
@@ -57,19 +57,43 @@ async function performScheduledMonitoring(env) {
     }
 
     const feeds = await rssManager.getFeeds();
-    console.log(`📊 检查 ${feeds.length} 个订阅源更新`);
+    console.log(`📊 总共 ${feeds.length} 个订阅源`);
 
     if (feeds.length === 0) {
       console.log('📭 没有配置的订阅源');
       return;
     }
 
+    // 分批处理配置
+    const BATCH_SIZE = 25; // 每次处理25个sitemap（进一步提高）
+    const PROCESSING_KEY = 'monitoring_progress';
+
+    // 获取上次处理的位置
+    let lastIndex = 0;
+    try {
+      const progressData = await rssManager.kv.get(PROCESSING_KEY);
+      if (progressData) {
+        const progress = JSON.parse(progressData);
+        lastIndex = progress.lastIndex || 0;
+      }
+    } catch (error) {
+      console.warn('⚠️ 获取处理进度失败，从头开始:', error);
+    }
+
+    // 计算本次处理的范围
+    const startIndex = lastIndex;
+    const endIndex = Math.min(startIndex + BATCH_SIZE, feeds.length);
+    const currentBatch = feeds.slice(startIndex, endIndex);
+
+    console.log(`📦 处理批次: ${startIndex + 1}-${endIndex}/${feeds.length}`);
+
     // 用于存储所有新增的URL
     const allNewUrls = [];
 
-    for (const url of feeds) {
+    for (let i = 0; i < currentBatch.length; i++) {
+      const url = currentBatch[i];
       try {
-        console.log(`🔍 正在检查订阅源: ${url}`);
+        console.log(`🔍 正在检查订阅源 [${startIndex + i + 1}/${feeds.length}]: ${url}`);
 
         const result = await rssManager.addFeed(url);
 
@@ -93,18 +117,40 @@ async function performScheduledMonitoring(env) {
           console.warn(`⚠️ 订阅源 ${url} 更新失败: ${result.errorMsg}`);
         }
 
-        // 添加延迟避免频率限制
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // 减少延迟，避免CPU超时
+        if (i < currentBatch.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200)); // 减少到200ms
+        }
 
       } catch (error) {
         console.error(`❌ 检查订阅源失败: ${url}`, error);
       }
     }
 
-    // 发送关键词汇总
+    // 更新处理进度
+    const nextIndex = endIndex >= feeds.length ? 0 : endIndex; // 循环处理
+    try {
+      await rssManager.kv.put(PROCESSING_KEY, JSON.stringify({
+        lastIndex: nextIndex,
+        lastUpdate: new Date().toISOString(),
+        totalFeeds: feeds.length,
+        processedInThisBatch: currentBatch.length
+      }));
+      console.log(`📝 已更新处理进度: 下次从索引 ${nextIndex} 开始`);
+    } catch (error) {
+      console.error('❌ 保存处理进度失败:', error);
+    }
+
+    // 发送关键词汇总（只在有新URL时）
     if (allNewUrls.length > 0) {
       console.log(`📊 发送关键词汇总，共 ${allNewUrls.length} 个新URL`);
       await sendKeywordsSummary(allNewUrls);
+    }
+
+    if (nextIndex === 0) {
+      console.log('🔄 本轮监控完成，下次将从头开始');
+    } else {
+      console.log(`⏳ 批次处理完成，剩余 ${feeds.length - nextIndex} 个待处理`);
     }
 
     console.log('✅ 定时监控任务完成');
