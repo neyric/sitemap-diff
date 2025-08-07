@@ -29,20 +29,21 @@ export class RSSManager {
   /**
    * 下载并保存 sitemap 文件
    * @param {string} url - sitemap 的 URL
+   * @param {boolean} forceDownload - 是否强制下载，忽略今日更新检查
    * @returns {Promise<Object>} 结果对象
    */
-  async downloadSitemap(url) {
+  async downloadSitemap(url, forceDownload = false) {
     try {
       console.log(`尝试下载 sitemap: ${url}`);
 
       const domain = new URL(url).hostname;
       const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-      // 检查今天是否已经更新过
+      // 检查今天是否已经更新过（除非强制下载）
       const lastUpdateKey = `last_update_${domain}`;
       const lastUpdate = await this.kv.get(lastUpdateKey);
 
-      if (lastUpdate === today) {
+      if (!forceDownload && lastUpdate === today) {
         // 今天已经更新过，比较现有文件
         const currentContent = await this.kv.get(`sitemap_current_${domain}`);
         const latestContent = await this.kv.get(`sitemap_latest_${domain}`);
