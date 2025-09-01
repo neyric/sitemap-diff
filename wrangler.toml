@@ -9,8 +9,8 @@ crons = ["0 0,8,16 * * *"]
 # KV 存储配置
 [[kv_namespaces]]
 binding = "SITEMAP_STORAGE"
-id = "b2137387b6694751a90fe06710f64b73"
-preview_id = "67f4101142c74a458cbfdf1405f7a06a"
+id = "6f07d2f1f21a4f189366818e4804c838"
+preview_id = "f973d10fa9404fe292aa7ee97919d433"
 
 # 环境变量
 [vars]
