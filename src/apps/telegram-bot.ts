@@ -4,16 +4,79 @@
  * 使用 Telegram Bot API 的 HTTP 接口
  */
 
-import { telegramConfig } from '../config.js';
+import { telegramConfig } from '../config.ts';
+import { RSSManager } from '../services/rss-manager.ts';
+
+interface TelegramSendOptions {
+  disableWebPagePreview?: boolean;
+  parse_mode?: string;
+  [key: string]: any;
+}
+
+interface TelegramResponse {
+  ok: boolean;
+  result?: any;
+  error_code?: number;
+  description?: string;
+}
+
+interface TelegramMessage {
+  message_id: number;
+  from: TelegramUser;
+  chat: TelegramChat;
+  date: number;
+  text?: string;
+}
+
+interface TelegramUser {
+  id: number;
+  is_bot: boolean;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+}
+
+interface TelegramChat {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  type: 'private' | 'group' | 'supergroup' | 'channel';
+}
+
+interface TelegramUpdate {
+  update_id: number;
+  message?: TelegramMessage;
+  edited_message?: TelegramMessage;
+  channel_post?: TelegramMessage;
+  edited_channel_post?: TelegramMessage;
+}
+
+interface KeywordStat {
+  keyword: string;
+  count: number;
+}
+
+interface DomainStat {
+  domain: string;
+  count: number;
+}
+
+interface DomainResult {
+  domain: string;
+  newUrls: string[];
+  totalNew: number;
+}
 
 /**
  * 发送消息到 Telegram
- * @param {string} chatId - 聊天 ID
- * @param {string} text - 消息文本
- * @param {Object} options - 其他选项
- * @returns {Promise<Object>} API 响应
+ * @param chatId - 聊天 ID
+ * @param text - 消息文本
+ * @param options - 其他选项
+ * @returns API 响应
  */
-export async function sendMessage(chatId, text, options = {}) {
+export async function sendMessage(chatId: string | number, text: string, options: TelegramSendOptions = {}): Promise<TelegramResponse> {
   try {
     const url = `https://api.telegram.org/bot${telegramConfig.token}/sendMessage`;
     const data = {
@@ -45,19 +108,19 @@ export async function sendMessage(chatId, text, options = {}) {
 
 /**
  * 发送文档到 Telegram
- * @param {string} chatId - 聊天 ID
- * @param {string} document - 文档内容
- * @param {string} filename - 文件名
- * @param {string} caption - 说明文字
- * @returns {Promise<Object>} API 响应
+ * @param chatId - 聊天 ID
+ * @param document - 文档内容
+ * @param filename - 文件名
+ * @param caption - 说明文字
+ * @returns API 响应
  */
-export async function sendDocument(chatId, document, filename, caption = '') {
+export async function sendDocument(chatId: string | number, document: string, filename: string, caption: string = ''): Promise<TelegramResponse> {
   try {
     const url = `https://api.telegram.org/bot${telegramConfig.token}/sendDocument`;
 
     // 创建 FormData
     const formData = new FormData();
-    formData.append('chat_id', chatId);
+    formData.append('chat_id', String(chatId));
     formData.append('document', new Blob([document], { type: 'application/xml' }), filename);
     if (caption) {
       formData.append('caption', caption);
@@ -82,14 +145,14 @@ export async function sendDocument(chatId, document, filename, caption = '') {
 
 /**
  * 发送 sitemap 更新通知（优化版本）
- * @param {string} url - sitemap URL
- * @param {string[]} newUrls - 新增的 URL 列表
- * @param {string} sitemapContent - sitemap 内容
- * @param {string} targetChat - 目标聊天 ID
- * @param {boolean} batchMode - 是否批量模式（减少通知）
- * @returns {Promise<void>}
+ * @param url - sitemap URL
+ * @param newUrls - 新增的 URL 列表
+ * @param sitemapContent - sitemap 内容
+ * @param targetChat - 目标聊天 ID
+ * @param batchMode - 是否批量模式（减少通知）
+ * @returns 
  */
-export async function sendUpdateNotification(url, newUrls, sitemapContent, targetChat = null, batchMode = false) {
+export async function sendUpdateNotification(url: string, newUrls: string[], sitemapContent: string | null, targetChat: string | null = null, batchMode: boolean = false): Promise<void> {
   const chatId = targetChat || telegramConfig.targetChat;
   if (!chatId) {
     console.error('未配置发送目标，请检查 TELEGRAM_TARGET_CHAT 环境变量');
@@ -151,14 +214,14 @@ export async function sendUpdateNotification(url, newUrls, sitemapContent, targe
 
 /**
  * 发送8小时统一检查报告
- * @param {Map} domainResults - 按域名分组的结果
- * @param {string[]} allNewUrls - 所有新增的 URL 列表
- * @param {number} processedCount - 处理成功数量
- * @param {number} errorCount - 处理失败数量
- * @param {string} targetChat - 目标聊天 ID
- * @returns {Promise<void>}
+ * @param domainResults - 按域名分组的结果
+ * @param allNewUrls - 所有新增的 URL 列表
+ * @param processedCount - 处理成功数量
+ * @param errorCount - 处理失败数量
+ * @param targetChat - 目标聊天 ID
+ * @returns 
  */
-export async function sendUnifiedReport(domainResults, allNewUrls, processedCount, errorCount, targetChat = null) {
+export async function sendUnifiedReport(domainResults: Map<string, DomainResult>, allNewUrls: string[], processedCount: number, errorCount: number, targetChat: string | null = null): Promise<void> {
   const chatId = targetChat || telegramConfig.targetChat;
   if (!chatId) {
     console.error('未配置发送目标，请检查 TELEGRAM_TARGET_CHAT 环境变量');
@@ -244,11 +307,11 @@ export async function sendUnifiedReport(domainResults, allNewUrls, processedCoun
 
 /**
  * 发送关键词汇总（优化版本，包含统计功能）
- * @param {string[]} allNewUrls - 所有新增的 URL 列表
- * @param {string} targetChat - 目标聊天 ID
- * @returns {Promise<void>}
+ * @param allNewUrls - 所有新增的 URL 列表
+ * @param targetChat - 目标聊天 ID
+ * @returns 
  */
-export async function sendKeywordsSummary(allNewUrls, targetChat = null) {
+export async function sendKeywordsSummary(allNewUrls: string[], targetChat: string | null = null): Promise<void> {
   const chatId = targetChat || telegramConfig.targetChat;
   if (!chatId) {
     console.error('未配置发送目标，请检查 TELEGRAM_TARGET_CHAT 环境变量');
@@ -283,7 +346,7 @@ export async function sendKeywordsSummary(allNewUrls, targetChat = null) {
       `====================================\n` +
       `⏰ 时间: ${new Date().toLocaleString('zh-CN')}`;
 
-    await sendMessage(chatId, summaryMessage);
+    await sendMessage(String(chatId), summaryMessage);
     console.log('已发送关键词汇总');
 
   } catch (error) {
@@ -293,11 +356,11 @@ export async function sendKeywordsSummary(allNewUrls, targetChat = null) {
 
 /**
  * 提取关键词并统计出现次数
- * @param {string[]} urls - URL 列表
- * @returns {Array<{keyword: string, count: number}>} 关键词统计列表
+ * @param urls - URL 列表
+ * @returns 关键词统计列表
  */
-function extractKeywordsWithCount(urls) {
-  const keywordCounts = new Map();
+function extractKeywordsWithCount(urls: string[]): KeywordStat[] {
+  const keywordCounts = new Map<string, number>();
 
   for (const url of urls) {
     try {
@@ -334,11 +397,11 @@ function extractKeywordsWithCount(urls) {
 
 /**
  * 统计域名分布
- * @param {string[]} urls - URL 列表
- * @returns {Array<{domain: string, count: number}>} 域名统计列表
+ * @param urls - URL 列表
+ * @returns 域名统计列表
  */
-function extractDomainStats(urls) {
-  const domainCounts = new Map();
+function extractDomainStats(urls: string[]): DomainStat[] {
+  const domainCounts = new Map<string, number>();
 
   for (const url of urls) {
     try {
@@ -358,28 +421,31 @@ function extractDomainStats(urls) {
 
 /**
  * 提取关键词（简化版本，保持向后兼容）
- * @param {string[]} urls - URL 列表
- * @returns {string[]} 关键词列表
+ * @param urls - URL 列表
+ * @returns 关键词列表
  */
-function extractKeywords(urls) {
+function extractKeywords(urls: string[]): string[] {
   const stats = extractKeywordsWithCount(urls);
   return stats.map(stat => stat.keyword);
 }
 
 /**
  * 处理 Telegram Webhook 更新
- * @param {Object} update - Telegram 更新对象
- * @param {RSSManager} rssManager - RSS 管理器实例
- * @returns {Promise<Object>} 响应对象
+ * @param update - Telegram 更新对象
+ * @param rssManager - RSS 管理器实例
+ * @returns 响应对象
  */
-export async function handleTelegramUpdate(update, rssManager) {
+export async function handleTelegramUpdate(update: TelegramUpdate, rssManager: RSSManager): Promise<{ success: boolean; error?: string }> {
   try {
     if (!update.message || !update.message.text) {
       return { success: true };
     }
 
     const message = update.message;
-    const text = message.text.trim();
+    const text = message.text?.trim();
+    if (!text) {
+      return { success: true };
+    }
     const chatId = message.chat.id;
 
     console.log(`收到 Telegram 消息: ${text} from ${message.from.username || message.from.id}`);
@@ -419,18 +485,18 @@ export async function handleTelegramUpdate(update, rssManager) {
     return { success: true };
   } catch (error) {
     console.error('处理 Telegram 更新失败:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
 /**
  * 处理 RSS 命令
- * @param {string} chatId - 聊天 ID
- * @param {string[]} args - 命令参数
- * @param {RSSManager} rssManager - RSS 管理器实例
- * @returns {Promise<void>}
+ * @param chatId - 聊天 ID
+ * @param args - 命令参数
+ * @param rssManager - RSS 管理器实例
+ * @returns 
  */
-async function handleRSSCommand(chatId, args, rssManager) {
+async function handleRSSCommand(chatId: string | number, args: string[], rssManager: RSSManager): Promise<void> {
   if (args.length === 0) {
     await sendMessage(chatId,
       '请使用以下命令：\n' +
@@ -472,7 +538,7 @@ async function handleRSSCommand(chatId, args, rssManager) {
       const result = await rssManager.addFeed(url);
       if (result.success) {
         await sendMessage(chatId, `成功添加sitemap监控：${url}`);
-        await sendUpdateNotification(url, result.newUrls, null, chatId);
+        await sendUpdateNotification(url, result.newUrls || [], null, String(chatId));
       } else {
         await sendMessage(chatId, `添加sitemap监控失败：${url}\n原因：${result.errorMsg}`);
       }
@@ -502,11 +568,11 @@ async function handleRSSCommand(chatId, args, rssManager) {
 
 /**
  * 处理新闻命令（使用统一报告格式）
- * @param {string} chatId - 聊天 ID
- * @param {RSSManager} rssManager - RSS 管理器实例
- * @returns {Promise<void>}
+ * @param chatId - 聊天 ID
+ * @param rssManager - RSS 管理器实例
+ * @returns 
  */
-async function handleNewsCommand(chatId, rssManager) {
+async function handleNewsCommand(chatId: string | number, rssManager: RSSManager): Promise<void> {
   try {
     const feeds = await rssManager.getFeeds();
     if (feeds.length === 0) {
@@ -517,8 +583,8 @@ async function handleNewsCommand(chatId, rssManager) {
     await sendMessage(chatId, '开始手动触发统一检查...');
 
     // 用于存储所有结果
-    const domainResults = new Map(); // 按域名分组的结果
-    const allNewUrls = [];
+    const domainResults = new Map<string, DomainResult>(); // 按域名分组的结果
+    const allNewUrls: string[] = [];
     let processedCount = 0;
     let errorCount = 0;
 
@@ -543,7 +609,7 @@ async function handleNewsCommand(chatId, rssManager) {
           }
 
           if (result.newUrls && result.newUrls.length > 0) {
-            const domainData = domainResults.get(domain);
+            const domainData = domainResults.get(domain)!;
             domainData.newUrls.push(...result.newUrls);
             domainData.totalNew += result.newUrls.length;
             allNewUrls.push(...result.newUrls);
@@ -558,7 +624,7 @@ async function handleNewsCommand(chatId, rssManager) {
     }
 
     // 发送统一汇总报告
-    await sendUnifiedReport(domainResults, allNewUrls, processedCount, errorCount, chatId);
+    await sendUnifiedReport(domainResults, allNewUrls, processedCount, errorCount, String(chatId));
 
   } catch (error) {
     console.error('处理新闻命令失败:', error);

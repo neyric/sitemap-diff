@@ -3,20 +3,34 @@
  * 对应原 Python 项目的 core/config.py
  */
 
-export const telegramConfig = {
-  token: null, // 从环境变量获取
-  targetChat: null, // 从环境变量获取
+interface TelegramConfig {
+  token: string;
+  targetChat: string;
+}
+
+interface DiscordConfig {
+  token: string;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+export const telegramConfig: TelegramConfig = {
+  token: '', // 从环境变量获取
+  targetChat: '', // 从环境变量获取
 };
 
-export const discordConfig = {
-  token: null, // 从环境变量获取
+export const discordConfig: DiscordConfig = {
+  token: '', // 从环境变量获取
 };
 
 /**
  * 初始化配置
- * @param {Object} env - Cloudflare Workers 环境变量
+ * @param env - Cloudflare Workers 环境变量
  */
-export function initConfig(env) {
+export function initConfig(env: any): void {
   telegramConfig.token = env.TELEGRAM_BOT_TOKEN || "";
   telegramConfig.targetChat = env.TELEGRAM_TARGET_CHAT || "";
   discordConfig.token = env.DISCORD_TOKEN || "";
@@ -29,9 +43,9 @@ export function initConfig(env) {
 
 /**
  * 验证配置是否完整
- * @returns {Object} 验证结果
+ * @returns 验证结果
  */
-export function validateConfig() {
+export function validateConfig(): ValidationResult {
   const errors = [];
 
   if (!telegramConfig.token) {

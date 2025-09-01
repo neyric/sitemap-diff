@@ -2,17 +2,20 @@
   "name": "site-bot-cloudflare",
   "version": "1.0.0",
   "description": "Site monitoring bot for Telegram and Discord - Cloudflare Workers version",
-  "main": "src/index.js",
+  "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@cloudflare/workers-types": "^4.0.0"
   },
   "devDependencies": {
+    "typescript": "^5.0.0",
     "wrangler": "^3.0.0"
   },
   "keywords": [

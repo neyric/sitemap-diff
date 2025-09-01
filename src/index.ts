@@ -3,24 +3,30 @@
  * 对应原 Python 项目的 site-bot.py
  */
 
-import { initConfig, validateConfig } from './config.js';
-import { RSSManager } from './services/rss-manager.js';
+import { initConfig, validateConfig } from './config.ts';
+import { RSSManager } from './services/rss-manager.ts';
 import {
   sendUpdateNotification,
   sendKeywordsSummary,
   sendUnifiedReport,
   handleTelegramUpdate
-} from './apps/telegram-bot.js';
-import { handleDiscordInteraction } from './apps/discord-bot.js';
+} from './apps/telegram-bot.ts';
+import { handleDiscordInteraction } from './apps/discord-bot.ts';
+
+interface DomainResult {
+  domain: string;
+  newUrls: string[];
+  totalNew: number;
+}
 
 // 全局变量
-let rssManager = null;
+let rssManager: RSSManager | null = null;
 
 /**
  * 初始化应用
- * @param {Object} env - 环境变量
+ * @param env - 环境变量
  */
-function initializeApp(env) {
+function initializeApp(env: any): void {
   console.log('🚀 初始化 Site Bot...');
 
   // 初始化配置
@@ -46,9 +52,9 @@ function initializeApp(env) {
 
 /**
  * 执行定时监控任务（8小时统一检查版本）
- * @param {Object} env - 环境变量
+ * @param env - 环境变量
  */
-async function performScheduledMonitoring(env) {
+async function performScheduledMonitoring(env: any): Promise<void> {
   try {
     console.log('⏰ 开始执行8小时统一监控任务...');
 
@@ -66,8 +72,8 @@ async function performScheduledMonitoring(env) {
     }
 
     // 用于存储所有结果
-    const domainResults = new Map(); // 按域名分组的结果
-    const allNewUrls = [];
+    const domainResults = new Map<string, DomainResult>(); // 按域名分组的结果
+    const allNewUrls: string[] = [];
     let processedCount = 0;
     let errorCount = 0;
 
@@ -95,7 +101,7 @@ async function performScheduledMonitoring(env) {
           }
 
           if (result.newUrls && result.newUrls.length > 0) {
-            const domainData = domainResults.get(domain);
+            const domainData = domainResults.get(domain)!;
             domainData.newUrls.push(...result.newUrls);
             domainData.totalNew += result.newUrls.length;
             allNewUrls.push(...result.newUrls);
@@ -134,12 +140,12 @@ async function performScheduledMonitoring(env) {
 
 /**
  * 处理 HTTP 请求
- * @param {Request} request - 请求对象
- * @param {Object} env - 环境变量
- * @param {Object} ctx - 上下文对象
- * @returns {Response} 响应对象
+ * @param request - 请求对象
+ * @param env - 环境变量
+ * @param ctx - 上下文对象
+ * @returns 响应对象
  */
-async function handleRequest(request, env, ctx) {
+async function handleRequest(request: Request, env: any, ctx: any): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
 
@@ -170,8 +176,8 @@ async function handleRequest(request, env, ctx) {
 
     // Telegram Webhook
     if (path === '/webhook/telegram' && request.method === 'POST') {
-      const update = await request.json();
-      const result = await handleTelegramUpdate(update, rssManager);
+      const update = await request.json() as any;
+      const result = await handleTelegramUpdate(update, rssManager!);
 
       return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json' }
@@ -180,8 +186,8 @@ async function handleRequest(request, env, ctx) {
 
     // Discord Webhook
     if (path === '/webhook/discord' && request.method === 'POST') {
-      const interaction = await request.json();
-      const result = await handleDiscordInteraction(interaction, rssManager);
+      const interaction = await request.json() as any;
+      const result = await handleDiscordInteraction(interaction, rssManager!);
 
       return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json' }
@@ -190,7 +196,7 @@ async function handleRequest(request, env, ctx) {
 
     // API 状态
     if (path === '/api/status') {
-      const feeds = rssManager ? await rssManager.getFeeds() : [];
+      const feeds: string[] = rssManager ? await rssManager.getFeeds() : [];
       return new Response(JSON.stringify({
         status: 'running',
         feeds: feeds,
@@ -219,7 +225,7 @@ async function handleRequest(request, env, ctx) {
     console.error('处理请求失败:', error);
     return new Response(JSON.stringify({
       error: 'Internal Server Error',
-      message: error.message,
+      message: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     }), {
       status: 500,
@@ -231,7 +237,7 @@ async function handleRequest(request, env, ctx) {
 // Cloudflare Workers 事件处理器
 export default {
   // 处理 HTTP 请求
-  async fetch(request, env, ctx) {
+  async fetch(request: any, env: any, ctx: any) {
     // 确保应用已初始化
     if (!rssManager) {
       try {
@@ -239,7 +245,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           error: 'Initialization Failed',
-          message: error.message
+          message: error instanceof Error ? error.message : String(error)
         }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -251,7 +257,7 @@ export default {
   },
 
   // 定时任务触发器
-  async scheduled(event, env, ctx) {
+  async scheduled(event: any, env: any, ctx: any) {
     console.log('⏰ 收到定时任务触发');
 
     // 确保应用已初始化

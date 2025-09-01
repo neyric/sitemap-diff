@@ -6,12 +6,12 @@
 
 /**
  * 从 sitemap XML 中提取所有 URL
- * @param {string} xmlContent - sitemap XML 内容
- * @returns {string[]} URL 列表
+ * @param xmlContent - sitemap XML 内容
+ * @returns URL 列表
  */
-export function extractURLs(xmlContent) {
+export function extractURLs(xmlContent: string): string[] {
   try {
-    const urls = [];
+    const urls: string[] = [];
 
     // 使用正则表达式匹配 <loc> 标签中的 URL
     const locRegex = /<loc[^>]*>(.*?)<\/loc>/gi;
@@ -31,18 +31,23 @@ export function extractURLs(xmlContent) {
   }
 }
 
+interface UrlWithLastMod {
+  url: string;
+  lastmod?: string | undefined;
+}
+
 /**
  * 从 sitemap XML 中提取 URL 和最后修改时间
- * @param {string} xmlContent - sitemap XML 内容
- * @returns {Array<{url: string, lastmod?: string}>} URL 和修改时间列表
+ * @param xmlContent - sitemap XML 内容
+ * @returns URL 和修改时间列表
  */
-export function extractURLsWithLastMod(xmlContent) {
+export function extractURLsWithLastMod(xmlContent: string): UrlWithLastMod[] {
   try {
-    const results = [];
+    const results: UrlWithLastMod[] = [];
 
     // 使用正则表达式匹配 <url> 块
     const urlBlockRegex = /<url[^>]*>(.*?)<\/url>/gis;
-    let urlMatch;
+    let urlMatch: RegExpExecArray | null;
 
     while ((urlMatch = urlBlockRegex.exec(xmlContent)) !== null) {
       const urlBlock = urlMatch[1];
@@ -56,7 +61,7 @@ export function extractURLsWithLastMod(xmlContent) {
         const lastmod = lastmodMatch ? lastmodMatch[1].trim() : undefined;
 
         if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-          results.push({ url, lastmod });
+          results.push({ url, lastmod: lastmod || undefined });
         }
       }
     }
@@ -70,10 +75,10 @@ export function extractURLsWithLastMod(xmlContent) {
 
 /**
  * 验证 XML 是否为有效的 sitemap
- * @param {string} xmlContent - XML 内容
- * @returns {boolean} 是否为有效的 sitemap
+ * @param xmlContent - XML 内容
+ * @returns 是否为有效的 sitemap
  */
-export function isValidSitemap(xmlContent) {
+export function isValidSitemap(xmlContent: string): boolean {
   try {
     // 检查是否包含 sitemap 相关的标签
     const hasUrlset = /<urlset[^>]*>/i.test(xmlContent);
@@ -86,17 +91,3 @@ export function isValidSitemap(xmlContent) {
     return false;
   }
 }
-
-/**
- * 解析 XML 字符串（兼容性方法）
- * @param {string} xmlString - XML 字符串
- * @returns {Object} 模拟的文档对象
- * @deprecated 在 Workers 环境中使用正则表达式替代
- */
-export function parseXML(xmlString) {
-  console.warn('parseXML 在 Workers 环境中已弃用，请使用 extractURLs 等专用方法');
-  return {
-    querySelectorAll: () => [],
-    documentElement: null
-  };
-} 
