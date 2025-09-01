@@ -1,16 +1,20 @@
 # Site Bot - 网站监控机器人
 
-一个基于 Cloudflare Workers 的智能网站监控机器人，使用 **TypeScript** 开发，自动监控多个网站的 sitemap 变化，并通过 Telegram/Discord 推送更新通知。
+一个基于 Cloudflare Workers 的智能网站监控机器人，使用 **TypeScript** 和 **Hono** 框架开发，自动监控多个网站的 sitemap 变化，并通过 Telegram/Discord 推送更新通知。
 
 ## 🎯 项目特色
 
-- **TypeScript 支持**：完全使用 TypeScript 重写，提供类型安全和更好的开发体验
+- **现代技术栈**：
+  - **TypeScript** 支持：完全使用 TypeScript 重写，提供类型安全和更好的开发体验
+  - **Hono 框架**：使用轻量级、高性能的 Hono 框架处理 HTTP 请求
+  - **中间件支持**：内置 CORS、日志、错误处理等中间件
 - **零成本部署**：基于 Cloudflare Workers，完全免费
 - **智能监控**：自动检测 sitemap 变化，支持 .gz 压缩文件
 - **静默模式**：只在有更新时发送通知，避免消息轰炸
 - **多平台支持**：Telegram 和 Discord 双平台
 - **关键词汇总**：自动提取和分析新增内容关键词
 - **实时交互**：支持命令行操作和状态查询
+- **RESTful API**：完整的 REST API 支持，易于扩展和集成
 
 ---
 

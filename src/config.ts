@@ -43,17 +43,21 @@ export function initConfig(env: any): void {
 
 /**
  * 验证配置是否完整
+ * @param strict - 是否严格检查，false 时只对 webhook 端点进行严格检查
  * @returns 验证结果
  */
-export function validateConfig(): ValidationResult {
+export function validateConfig(strict: boolean = false): ValidationResult {
   const errors = [];
 
-  if (!telegramConfig.token) {
-    errors.push("TELEGRAM_BOT_TOKEN 未设置");
-  }
+  // 非严格模式下，允许某些端点在没有完整配置时运行
+  if (strict) {
+    if (!telegramConfig.token) {
+      errors.push("TELEGRAM_BOT_TOKEN 未设置");
+    }
 
-  if (!telegramConfig.targetChat) {
-    errors.push("TELEGRAM_TARGET_CHAT 未设置");
+    if (!telegramConfig.targetChat) {
+      errors.push("TELEGRAM_TARGET_CHAT 未设置");
+    }
   }
 
   return {

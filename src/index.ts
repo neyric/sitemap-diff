@@ -1,8 +1,11 @@
 /**
  * Cloudflare Workers 主入口文件
- * 对应原 Python 项目的 site-bot.py
+ * 基于 Hono 框架重构
  */
 
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
 import { initConfig, validateConfig } from './config.ts';
 import { RSSManager } from './services/rss-manager.ts';
 import {
@@ -22,18 +25,31 @@ interface DomainResult {
 // 全局变量
 let rssManager: RSSManager | null = null;
 
+// 创建 Hono 应用实例
+const app = new Hono();
+
+// 添加日志中间件
+app.use('*', logger());
+
+// 添加 CORS 中间件
+app.use('*', cors({
+  origin: '*',
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+}));
+
 /**
  * 初始化应用
  * @param env - 环境变量
  */
-function initializeApp(env: any): void {
+function initializeApp(env: any, strict: boolean = false): void {
   console.log('🚀 初始化 Site Bot...');
 
   // 初始化配置
   initConfig(env);
 
   // 验证配置
-  const validation = validateConfig();
+  const validation = validateConfig(strict);
   if (!validation.isValid) {
     console.error('❌ 配置验证失败:', validation.errors);
     throw new Error(`配置错误: ${validation.errors.join(', ')}`);
@@ -49,6 +65,129 @@ function initializeApp(env: any): void {
 
   console.log('✅ Site Bot 初始化完成');
 }
+
+// 初始化中间件
+app.use('*', async (c, next) => {
+  const env = c.env;
+  
+  // 确保应用已初始化
+  if (!rssManager) {
+    try {
+      initializeApp(env);
+    } catch (error) {
+      return c.json({
+        error: 'Initialization Failed',
+        message: error instanceof Error ? error.message : String(error)
+      }, 500);
+    }
+  }
+
+  return await next();
+});
+
+// 全局错误处理中间件
+app.onError((err, c) => {
+  console.error('Hono 错误处理:', err);
+  
+  return c.json({
+    error: 'Internal Server Error',
+    message: err.message || '服务器内部错误',
+    timestamp: new Date().toISOString()
+  }, 500);
+});
+
+// 404 处理
+app.notFound((c) => {
+  return c.json({
+    error: 'Not Found',
+    message: '未找到请求的资源',
+    path: c.req.path,
+    method: c.req.method,
+    timestamp: new Date().toISOString()
+  }, 404);
+});
+
+// 健康检查路由
+app.get('/health', async (c) => {
+  return c.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'site-bot',
+    version: '1.0.0'
+  });
+});
+
+// 手动触发监控
+app.post('/monitor', async (c) => {
+  const env = c.env;
+  c.executionCtx.waitUntil(performScheduledMonitoring(env));
+  
+  return c.json({
+    status: 'success',
+    message: '监控任务已启动',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Telegram Webhook
+app.post('/webhook/telegram', async (c) => {
+  // 对 webhook 端点进行严格配置检查
+  const validation = validateConfig(true);
+  if (!validation.isValid) {
+    return c.json({
+      error: 'Configuration Error',
+      message: `配置错误: ${validation.errors.join(', ')}`
+    }, 500);
+  }
+
+  const update = await c.req.json();
+  const result = await handleTelegramUpdate(update as any, rssManager!);
+  
+  return c.json(result);
+});
+
+// Discord Webhook  
+app.post('/webhook/discord', async (c) => {
+  // 对 webhook 端点进行严格配置检查
+  const validation = validateConfig(true);
+  if (!validation.isValid) {
+    return c.json({
+      error: 'Configuration Error',
+      message: `配置错误: ${validation.errors.join(', ')}`
+    }, 500);
+  }
+
+  const interaction = await c.req.json();
+  const result = await handleDiscordInteraction(interaction as any, rssManager!);
+  
+  return c.json(result);
+});
+
+// API 状态
+app.get('/api/status', async (c) => {
+  const feeds: string[] = rssManager ? await rssManager.getFeeds() : [];
+  
+  return c.json({
+    status: 'running',
+    feeds: feeds,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 根路径 - API 文档
+app.get('/', async (c) => {
+  return c.json({
+    message: 'Site Bot API',
+    endpoints: [
+      '/health - 健康检查',
+      'POST /monitor - 手动触发监控',
+      'POST /webhook/telegram - Telegram Webhook',
+      'POST /webhook/discord - Discord Webhook',
+      '/api/status - API 状态'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
 
 /**
  * 执行定时监控任务（8小时统一检查版本）
@@ -138,122 +277,11 @@ async function performScheduledMonitoring(env: any): Promise<void> {
   }
 }
 
-/**
- * 处理 HTTP 请求
- * @param request - 请求对象
- * @param env - 环境变量
- * @param ctx - 上下文对象
- * @returns 响应对象
- */
-async function handleRequest(request: Request, env: any, ctx: any): Promise<Response> {
-  const url = new URL(request.url);
-  const path = url.pathname;
-
-  try {
-    // 健康检查
-    if (path === '/health') {
-      return new Response(JSON.stringify({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        service: 'site-bot',
-        version: '1.0.0'
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // 手动触发监控
-    if (path === '/monitor' && request.method === 'POST') {
-      ctx.waitUntil(performScheduledMonitoring(env));
-      return new Response(JSON.stringify({
-        status: 'success',
-        message: '监控任务已启动',
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Telegram Webhook
-    if (path === '/webhook/telegram' && request.method === 'POST') {
-      const update = await request.json() as any;
-      const result = await handleTelegramUpdate(update, rssManager!);
-
-      return new Response(JSON.stringify(result), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Discord Webhook
-    if (path === '/webhook/discord' && request.method === 'POST') {
-      const interaction = await request.json() as any;
-      const result = await handleDiscordInteraction(interaction, rssManager!);
-
-      return new Response(JSON.stringify(result), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // API 状态
-    if (path === '/api/status') {
-      const feeds: string[] = rssManager ? await rssManager.getFeeds() : [];
-      return new Response(JSON.stringify({
-        status: 'running',
-        feeds: feeds,
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // 默认响应
-    return new Response(JSON.stringify({
-      message: 'Site Bot API',
-      endpoints: [
-        '/health - 健康检查',
-        '/monitor - 手动触发监控 (POST)',
-        '/webhook/telegram - Telegram Webhook',
-        '/webhook/discord - Discord Webhook',
-        '/api/status - API 状态'
-      ],
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    console.error('处理请求失败:', error);
-    return new Response(JSON.stringify({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
 // Cloudflare Workers 事件处理器
 export default {
-  // 处理 HTTP 请求
-  async fetch(request: any, env: any, ctx: any) {
-    // 确保应用已初始化
-    if (!rssManager) {
-      try {
-        initializeApp(env);
-      } catch (error) {
-        return new Response(JSON.stringify({
-          error: 'Initialization Failed',
-          message: error instanceof Error ? error.message : String(error)
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    return await handleRequest(request, env, ctx);
+  // 处理 HTTP 请求 - 使用 Hono
+  async fetch(request: Request, env: any, ctx: any) {
+    return app.fetch(request, env, ctx);
   },
 
   // 定时任务触发器
