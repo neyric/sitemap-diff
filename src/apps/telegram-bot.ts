@@ -377,7 +377,7 @@ function extractKeywordsWithCount(urls: string[]): KeywordStat[] {
           !segment.match(/^(index|page|post|article|news|blog)$/i)) { // 排除常见无意义词
 
           // 处理带连字符的词
-          const cleanSegment = segment.replace(/-/g, '').toLowerCase();
+          const cleanSegment = segment.replace(/-/g, ' ').toLowerCase();
           if (cleanSegment.length > 2) {
             keywordCounts.set(cleanSegment, (keywordCounts.get(cleanSegment) || 0) + 1);
           }
